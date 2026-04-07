@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMMS — Work Order Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+:root {
+  --bg:        #09090b;
+  --surface:   #111113;
+  --surface2:  #18181b;
+  --surface3:  #1f1f23;
+  --border:    #27272a;
+  --border2:   #3f3f46;
+  --text:      #fafafa;
+  --text-muted:#a1a1aa;
+  --text-soft: #52525b;
+  --primary:      #6366f1;
+  --primary-dim:  rgba(99,102,241,0.12);
+  --primary-hover:#4f46e5;
+  --success:      #22c55e;
+  --success-dim:  rgba(34,197,94,0.1);
+  --warning:      #eab308;
+  --warning-dim:  rgba(234,179,8,0.1);
+  --danger:       #ef4444;
+  --danger-dim:   rgba(239,68,68,0.12);
+  --create-bg:    rgba(34,197,94,0.06);
+  --create-text:  #4ade80;
+  --update-bg:    rgba(99,102,241,0.06);
+  --update-text:  #818cf8;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-lg: 0 24px 60px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── HEADER ─────────────────────────────── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  height: 50px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  text-decoration: none;
+}
+.logo-mark {
+  width: 26px;
+  height: 26px;
+  background: var(--primary);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.logo-mark svg { width: 14px; height: 14px; fill: white; }
+.logo-text {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+.logo-text span {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.header-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+/* ── BUTTONS ─────────────────────────────── */
+.btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+.btn-create {
+  background: rgba(34,197,94,0.12);
+  color: #4ade80;
+  border-color: rgba(34,197,94,0.25);
+}
+.btn-create:hover { background: rgba(34,197,94,0.2); }
+
+.btn-update {
+  background: var(--primary-dim);
+  color: #818cf8;
+  border-color: rgba(99,102,241,0.3);
+}
+.btn-update:hover { background: rgba(99,102,241,0.2); }
+
+.btn-danger {
+  background: var(--danger-dim);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.25);
+}
+.btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.btn-outline:hover { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+.btn-sm  { padding: 4px 10px; font-size: 11.5px; }
+.btn-xs  { padding: 2px 8px; font-size: 11px; border-radius: 5px; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+/* ── TOOLBAR ─────────────────────────────── */
+.toolbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 2px;
+}
+.spacer { flex: 1; }
+
+.filter-select, .filter-input {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.filter-select {
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.filter-select:focus, .filter-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+}
+.filter-input { width: 190px; }
+.filter-input::placeholder { color: var(--text-soft); }
+
+/* Edit mode button */
+.btn-edit-mode-active {
+  background: rgba(234,179,8,0.12) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(234,179,8,0.3) !important;
+}
+
+/* ── BULK BAR ─────────────────────────────── */
+.bulk-bar {
+  background: rgba(234,179,8,0.06);
+  border-bottom: 1px solid rgba(234,179,8,0.15);
+  padding: 7px 20px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bulk-bar.visible { display: flex; }
+.bulk-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #fbbf24;
+  background: rgba(234,179,8,0.12);
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1px solid rgba(234,179,8,0.2);
+}
+.bulk-label { font-size: 12px; color: var(--text-muted); }
+
+/* ── STATS BAR ─────────────────────────────── */
+.stats-bar {
+  padding: 7px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+.stat-chip .dot { width: 5px; height: 5px; border-radius: 50%; }
+.chip-total  { background: var(--surface2); color: var(--text-muted); border-color: var(--border); }
+.chip-total .dot  { background: var(--text-soft); }
+.chip-create { background: var(--success-dim); color: var(--create-text); border-color: rgba(34,197,94,0.2); }
+.chip-create .dot { background: var(--success); }
+.chip-update { background: var(--primary-dim); color: var(--update-text); border-color: rgba(99,102,241,0.25); }
+.chip-update .dot { background: var(--primary); }
+
+/* ── TABLE ─────────────────────────────── */
+.table-wrapper {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 185px);
+  margin: 12px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+  min-width: 600px;
+}
+
+thead { position: sticky; top: 0; z-index: 10; }
+
+thead th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-soft);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  white-space: nowrap;
+  user-select: none;
+}
+thead th:first-child { width: 38px; padding: 8px 12px; }
+thead th.th-type  { width: 80px; }
+thead th.th-locked { color: var(--text-soft); opacity: 0.7; }
+
+/* Sortable */
+thead th.sortable { cursor: pointer; }
+thead th.sortable:hover { color: var(--text-muted); background: var(--surface3); }
+thead th.sort-active { color: var(--primary) !important; background: rgba(99,102,241,0.08); opacity: 1 !important; }
+.sort-icon { margin-left: 3px; font-size: 8px; opacity: 0.4; display: inline-block; }
+th.sort-active .sort-icon { opacity: 1; }
+
+/* Edit mode: hide locked columns */
+#main-table.edit-mode [data-col-hide="true"] { display: none; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.08s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr.row-create { background: var(--create-bg); }
+tbody tr.row-update { background: var(--update-bg); }
+tbody tr:hover { background: var(--surface3) !important; }
+tbody tr.row-selected { background: rgba(234,179,8,0.07) !important; }
+tr.wo-blocked { opacity: 0.45; }
+tr.wo-blocked:hover { opacity: 0.65; }
+
+td {
+  padding: 7px 12px;
+  vertical-align: middle;
+  max-width: 0;
+}
+td.td-check { width: 38px; padding: 7px 12px; }
+td.td-type  { width: 80px; }
+td.td-locked {
+  background: rgba(255,255,255,0.015);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+td.td-wo {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.3px;
+}
+
+/* ── TYPE BADGE ─────────────────────────────── */
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.badge-create {
+  background: rgba(34,197,94,0.1);
+  color: #4ade80;
+  border: 1px solid rgba(34,197,94,0.2);
+}
+.badge-update {
+  background: var(--primary-dim);
+  color: #818cf8;
+  border: 1px solid rgba(99,102,241,0.25);
+}
+
+/* ── STATUS BADGES ─────────────────────────────── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.status-open   { background: rgba(234,179,8,0.1);  color: #fbbf24; }
+.status-closed { background: var(--success-dim);   color: #4ade80; }
+.status-other  { background: var(--surface3);      color: var(--text-muted); }
+
+/* ── WO STATUS BADGE ─────────────────────────────── */
+.wo-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.2px;
+  transition: opacity 0.1s;
+}
+.wo-status-badge:hover { opacity: 0.8; }
+.wo-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+.wo-status-O { background: var(--primary-dim);   color: #818cf8; border: 1px solid rgba(99,102,241,0.25); }
+.wo-status-O .wo-dot { background: var(--primary); }
+.wo-status-C { background: var(--success-dim);   color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+.wo-status-C .wo-dot { background: var(--success); }
+.wo-status-H { background: var(--surface3);       color: var(--text-soft); border: 1px solid var(--border); }
+.wo-status-H .wo-dot { background: var(--text-soft); }
+
+/* ── EDITABLE CELL ─────────────────────────────── */
+.cell-val {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.1s;
+  vertical-align: middle;
+}
+.cell-val:hover {
+  background: rgba(99,102,241,0.1);
+  outline: 1px dashed rgba(99,102,241,0.35);
+}
+.cell-val.cell-empty { color: var(--text-soft); font-style: italic; }
+
+.cell-datetime {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 11.5px;
+}
+
+/* Log cell */
+.log-cell-wrap { display: flex; align-items: center; gap: 6px; max-width: 240px; }
+.log-preview {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+.log-preview:hover { background: rgba(99,102,241,0.1); outline: 1px dashed rgba(99,102,241,0.35); }
+.log-preview.cell-empty { color: var(--text-soft); font-style: italic; }
+
+/* Plant cell */
+.plant-cell { display: flex; flex-direction: column; }
+.plant-name  { font-weight: 500; font-size: 12px; }
+.plant-code  { font-size: 10px; color: var(--text-soft); font-family: monospace; margin-top: 1px; }
+
+/* Inline inputs */
+.cell-input, .cell-select {
+  padding: 3px 7px;
+  border: 1.5px solid var(--primary);
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+  background: var(--surface2);
+  color: var(--text);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+.cell-input  { width: 180px; }
+.cell-select { min-width: 160px; }
+
+/* ── EMPTY STATE ─────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 50px);
+  padding: 40px 20px;
+  text-align: center;
+}
+.es-wordmark {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 24px;
+}
+.empty-state h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.empty-state p {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  max-width: 380px;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+.drop-zone {
+  border: 1px dashed var(--border2);
+  border-radius: 12px;
+  padding: 40px 48px;
+  cursor: pointer;
+  transition: all 0.15s;
+  max-width: 420px;
+  width: 100%;
+  background: var(--surface);
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--primary);
+  background: var(--primary-dim);
+}
+.dz-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.dz-icon svg { width: 18px; height: 18px; stroke: var(--text-muted); }
+.drop-zone h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+.drop-zone p { font-size: 12px; color: var(--text-muted); margin: 0; }
+.dz-or {
+  font-size: 11px;
+  color: var(--text-soft);
+  margin: 12px 0;
+}
+
+/* ── CHECKBOX ─────────────────────────────── */
+input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--primary);
+  border-radius: 3px;
+}
+
+/* ── MODAL ─────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 92%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+.modal-lg { max-width: 640px; }
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  flex: 1;
+}
+.modal-close {
+  background: none;
+  border: 1px solid transparent;
+  font-size: 15px;
+  cursor: pointer;
+  color: var(--text-muted);
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 5px;
+  transition: all 0.12s;
+}
+.modal-close:hover {
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.modal-body   { padding: 20px; overflow-y: auto; flex: 1; }
+.modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  background: var(--surface2);
+  border-radius: 0 0 12px 12px;
+}
+
+/* ── FORM ─────────────────────────────── */
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group { margin-bottom: 14px; }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.required { color: var(--danger); }
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2352525b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+}
+.form-textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.5;
+}
+.form-hint { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
+
+/* ── PLANT LIST ─────────────────────────────── */
+.plant-list {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.plant-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.plant-item:last-child { border-bottom: none; }
+.plant-item:hover { background: var(--surface2); }
+.plant-item-code {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface3);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  min-width: 110px;
+}
+.plant-item-name  { font-weight: 500; font-size: 13px; flex: 1; }
+.plant-item-actions { display: flex; gap: 4px; }
+.plant-empty { padding: 24px; text-align: center; color: var(--text-soft); font-size: 12px; }
+
+/* ── LOG MODAL ─────────────────────────────── */
+.log-history-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 7px;
+}
+.log-history {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  max-height: 160px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+}
+.log-empty-msg { color: var(--text-soft); font-style: italic; }
+.log-divider { margin: 14px 0; border: none; border-top: 1px solid var(--border); }
+
+details summary {
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: '+ '; }
+details[open] summary::before { content: '− '; }
+
+/* ── TOAST ─────────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border2);
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  animation: toastIn 0.18s ease;
+}
+.toast.toast-success { border-color: rgba(34,197,94,0.3); color: #4ade80; }
+.toast.toast-error   { border-color: rgba(239,68,68,0.3);  color: #f87171; }
+@keyframes toastIn {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0);   opacity: 1; }
+}
+
+/* ── SCROLLBAR ─────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-soft); }
+
+/* ── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 640px) {
+  .table-wrapper { margin: 8px; }
+  .toolbar, .header { padding: 0 12px; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    </div>
+    <span class="logo-text">CMMS <span>/ Work Orders</span></span>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="openPlantsModal()">Plantas</button>
+  <div class="header-sep"></div>
+  <label class="btn btn-primary btn-sm" style="cursor:pointer;">
+    Importar CSV
+    <input type="file" id="file-input" accept=".csv" style="display:none" onchange="handleFileInput(this)">
+  </label>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar" id="toolbar" style="display:none">
+  <select class="filter-select" id="filter-plant" onchange="applyFilters()">
+    <option value="">Todas las plantas</option>
+  </select>
+  <select class="filter-select" id="filter-status" onchange="applyFilters()">
+    <option value="">Ops Status</option>
+    <option value="Open">Open</option>
+    <option value="Closed">Closed</option>
+  </select>
+  <select class="filter-select" id="filter-type" onchange="applyFilters()">
+    <option value="">Tipo: todos</option>
+    <option value="create">Solo CREATE</option>
+    <option value="update">Solo UPDATE</option>
+  </select>
+  <select class="filter-select" id="filter-wo-status" onchange="applyFilters()">
+    <option value="">WO Status: todos</option>
+    <option value="editable">Solo editables (O / C)</option>
+    <option value="O">O · Open</option>
+    <option value="C">C · Completed</option>
+    <option value="H">H · Closed</option>
+  </select>
+  <input type="text" class="filter-input" id="filter-search" placeholder="Buscar...">
+  <div class="toolbar-sep"></div>
+  <button class="btn btn-ghost btn-sm" id="btn-edit-mode" onclick="toggleEditMode()" title="Oculta columnas bloqueadas para enfocarte en lo editable">Modo edición</button>
+  <div class="spacer"></div>
+  <div class="toolbar-sep"></div>
+  <button class="btn btn-ghost btn-sm" onclick="openNewRowModal()">+ Nuevo incidente</button>
+  <div class="toolbar-sep"></div>
+  <button class="btn btn-create btn-sm" onclick="exportCSV('create')">Exportar CREATE</button>
+  <button class="btn btn-update btn-sm" onclick="exportCSV('update')">Exportar UPDATE</button>
+</div>
+
+<!-- BULK BAR -->
+<div class="bulk-bar" id="bulk-bar">
+  <span class="bulk-count" id="bulk-count-label">0 filas</span>
+  <span class="bulk-label">Bulk edit:</span>
+  <select class="filter-select" id="bulk-status" onchange="applyBulkField('Ops Status', this.value)">
+    <option value="">— Ops Status</option>
+    <option value="Open">Open</option>
+    <option value="Closed">Closed</option>
+  </select>
+  <select class="filter-select" id="bulk-wo-status" onchange="applyBulkField('WO Status', this.value)">
+    <option value="">— WO Status</option>
+    <option value="O">O · Open</option>
+    <option value="C">C · Completed</option>
+    <option value="H">H · Closed</option>
+  </select>
+  <select class="filter-select" id="bulk-equipment" onchange="applyBulkField('Equipment', this.value)">
+    <option value="">— Equipment</option>
+  </select>
+  <input type="datetime-local" class="filter-select" id="bulk-date">
+  <button class="btn btn-sm btn-ghost" onclick="applyBulkDate()">Aplicar fecha</button>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Deseleccionar</button>
+</div>
+
+<!-- STATS BAR -->
+<div class="stats-bar" id="stats-bar" style="display:none">
+  <span class="stat-chip chip-total"><span class="dot"></span><span id="stat-total">0</span> total</span>
+  <span class="stat-chip chip-create"><span class="dot"></span><span id="stat-create">0</span> CREATE</span>
+  <span class="stat-chip chip-update"><span class="dot"></span><span id="stat-update">0</span> UPDATE exportable</span>
+  <span class="stat-chip" style="background:var(--surface2);color:var(--text-soft);border-color:var(--border);display:none" id="stat-blocked-chip">
+    <span class="dot" style="background:var(--text-soft)"></span><span id="stat-blocked">0</span> bloqueadas (H)
+  </span>
+</div>
+
+<!-- TABLE -->
+<div class="table-wrapper" id="table-wrapper" style="display:none">
+  <table id="main-table">
+    <thead id="table-head"></thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<!-- EMPTY STATE -->
+<div class="empty-state" id="empty-state">
+  <div class="es-wordmark">CMMS Work Order Manager</div>
+  <h2>Gestión de Work Orders</h2>
+  <p>Importá un CSV para editar incidentes en bulk y exportarlos separados por tipo de operación.</p>
+  <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <div class="dz-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <h3>Arrastrá o hacé clic para importar</h3>
+    <div class="dz-or">— o —</div>
+    <p>Archivos .csv separados por comas</p>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<!-- MODAL: PLANTAS -->
+<div class="overlay" id="overlay-plants" onclick="closeModal('plants')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Gestión de Plantas</h3>
+      <button class="modal-close" onclick="closeModal('plants')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="plant-list-container"></div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--surface2)">
+        <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Nueva planta</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Asset ID <span class="required">*</span></label>
+            <input type="text" class="form-input" id="new-plant-code" placeholder="SX00000242">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Nombre <span class="required">*</span></label>
+            <input type="text" class="form-input" id="new-plant-name" placeholder="Paraguay">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('plants')">Cancelar</button>
+      <button class="btn btn-primary" onclick="addPlant()">Agregar planta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: NUEVA FILA -->
+<div class="overlay" id="overlay-newrow" onclick="closeModal('newrow')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Nuevo Incidente</h3>
+      <button class="modal-close" onclick="closeModal('newrow')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Planta (Asset ID) <span class="required">*</span></label>
+          <select class="form-select" id="new-asset-id">
+            <option value="">Seleccioná una planta…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ops Status</label>
+          <select class="form-select" id="new-status">
+            <option value="Open">Open</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">WO Status</label>
+          <select class="form-select" id="new-wo-status">
+            <option value="O">O · Open (se exporta en UPDATE)</option>
+            <option value="C">C · Completed (se exporta en UPDATE)</option>
+            <option value="H">H · Closed (NO se exporta en UPDATE)</option>
+          </select>
+          <div class="form-hint">Solo O y C aparecen en el export UPDATE.</div>
+        </div>
+        <div class="form-group"><!-- espacio --></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Scheduled Date</label>
+          <input type="datetime-local" class="form-input" id="new-scheduled-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Equipment</label>
+          <select class="form-select" id="new-equipment"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Brief Description <span class="required">*</span></label>
+        <input type="text" class="form-input" id="new-description" placeholder="Descripción del incidente…">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Action Taken</label>
+        <textarea class="form-textarea" id="new-action-taken" placeholder="Opcional…"></textarea>
+      </div>
+      <div id="new-row-extra-fields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('newrow')">Cancelar</button>
+      <button class="btn btn-create" onclick="addNewRow()">Crear incidente</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: LOG (Action Taken) -->
+<div class="overlay" id="overlay-log" onclick="closeModal('log')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Action Taken — Bitácora</h3>
+      <button class="modal-close" onclick="closeModal('log')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="log-history-label">Historial actual</div>
+      <div class="log-history" id="log-history-display"></div>
+      <hr class="log-divider">
+      <div class="form-group">
+        <label class="form-label">
+          Nueva entrada
+          <span style="color:var(--text-soft);font-size:10px;margin-left:6px;text-transform:none;font-weight:400;" id="log-date-preview"></span>
+        </label>
+        <textarea class="form-textarea" id="log-new-entry" placeholder="Escribí la actualización del incidente…" style="min-height:80px;"></textarea>
+        <div class="form-hint">Se añadirá con timestamp <b id="log-ts-hint"></b> al inicio del historial.</div>
+      </div>
+      <hr class="log-divider">
+      <details>
+        <summary>Editar texto completo directamente</summary>
+        <div style="margin-top:10px">
+          <textarea class="form-textarea" id="log-raw-edit" style="min-height:120px;font-family:monospace;font-size:12px;"></textarea>
+        </div>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('log')">Cancelar</button>
+      <button class="btn btn-outline" onclick="saveLogRaw()">Guardar texto completo</button>
+      <button class="btn btn-primary" onclick="saveLogEntry()">Añadir entrada</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="drop-input" accept=".csv" style="display:none" onchange="handleFileInput(this)">
+
+<script>
+// ============================================================
+// CONSTANTS & STATE
+// ============================================================
+const LOCKED_COLS = ['Work Order Number', 'Asset ID', 'Created On Date']
+const EQUIPMENT_OPTS = ['', 'Inverter', 'Tracker', 'Grid', 'Plant', 'Power Transformer', 'Weather Station']
+const STATUS_OPTS = ['Open', 'Closed', 'In Progress', 'On Hold', 'Pending']
+const WO_COL = 'Work Order Number'
+const ASSET_COL = 'Asset ID'
+const STATUS_COL = 'Ops Status'
+const EQUIP_COL = 'Equipment'
+const LOG_COL = 'Action Taken'
+const SCHED_COL = 'Scheduled Date'
+const CREATED_COL = 'Created On Date'
+const WO_STATUS_COL = 'WO Status'
+// WO Status values: O = Open, C = Completed, H = Closed (Hold)
+// Solo O y C se incluyen en el export UPDATE — H queda excluido
+const WO_STATUS_EXPORTABLE = ['O', 'C']
+
+let rows = []
+let columns = []
+let filteredIndices = []   // original indices after filtering
+let selectedOriginalIdx = new Set()  // original row indices selected
+let editingCell = null     // { origIdx, col }
+let logTarget = null       // { origIdx } for log modal
+let plants = {}            // assetId → plantName
+let editMode = false       // ocultar columnas bloqueadas
+let sortCol = null         // columna activa de ordenamiento
+let sortDir = 'asc'        // 'asc' | 'desc'
+
+// Columnas que se ocultan en modo edición (las que NO podés modificar)
+const HIDE_IN_EDIT_MODE = ['Work Order Number', 'Created On Date']
+
+// ============================================================
+// LOCAL STORAGE — PLANTS
+// ============================================================
+// Plantas hardcodeadas — siempre disponibles en cualquier computador
+const DEFAULT_PLANTS = {
+  'SX00000242': 'Paraguay',
+  'SX00000353': 'Alto Solar',
+  'SX00000841': 'Amparo del Sol',
+  'SX00000826': 'Canesa',
+  'SX00000827': 'Chalinga',
+  'SX00000039': 'Chuchiñi',
+  'SX00000381': 'Crucero',
+  'SX00000838': 'Don Pedro',
+  'SX00000354': 'El Queule',
+  'SX00000828': 'Illapel',
+  'SX00000245': 'Lambert',
+  'SX00000831': 'Las Codornices',
+  'SX00000837': 'Las Mercedes',
+  'SX00000830': 'Las Perdices',
+  'SX00000244': 'Llanos de Potroso',
+  'SX00000243': 'Lo Miranda',
+  'SX00000382': 'Malinke',
+  'SX00000842': 'Punta Baja',
+  'SX00000647': 'Quebrada de Talca',
+  'SX00000064': 'Santa Julia',
+  'SX00000637': 'Santa Lucia',
+  'SX00000406': 'Taranto',
+  'SX00000356': 'Villa Prat'
+}
+
+function loadPlants() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('cmms_plants') || '{}')
+    // Merge: defaults primero, localStorage encima (permite agregar/editar nuevas plantas)
+    return { ...DEFAULT_PLANTS, ...saved }
+  } catch {
+    return { ...DEFAULT_PLANTS }
+  }
+}
+function savePlantsToStorage() {
+  localStorage.setItem('cmms_plants', JSON.stringify(plants))
+}
+plants = loadPlants()
+
+// ============================================================
+// DATE UTILITIES
+// ============================================================
+function parseCsvDate(str) {
+  if (!str || !str.trim()) return null
+  // Format: MM-DD-YYYY HH:MM:SS
+  const m = str.trim().match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/)
+  if (!m) return null
+  return new Date(+m[3], +m[1]-1, +m[2], +m[4], +m[5], +m[6])
+}
+function formatCsvDate(d) {
+  if (!d || isNaN(d.getTime())) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(d.getMonth()+1)}-${pad(d.getDate())}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+function csvDateToInput(str) {
+  const d = parseCsvDate(str)
+  if (!d) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+function inputToCsvDate(val) {
+  if (!val) return ''
+  const d = new Date(val)
+  return formatCsvDate(d)
+}
+function formatLogTimestamp() {
+  const now = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(now.getDate())}/${pad(now.getMonth()+1)}`
+}
+
+// ============================================================
+// CSV IMPORT
+// ============================================================
+function handleFileInput(input) {
+  const file = input.files[0]
+  if (file) importCsv(file)
+  input.value = ''
+}
+
+function importCsv(file) {
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    encoding: 'UTF-8',
+    complete: (results) => {
+      // Normalize column names (trim BOM, whitespace, quotes)
+      const rawFields = results.meta.fields || []
+      columns = rawFields.map(f => f.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim())
+
+      // Remap row keys with normalized column names
+      rows = results.data.map(row => {
+        const clean = {}
+        rawFields.forEach((rawKey, i) => {
+          clean[columns[i]] = (row[rawKey] || '').trim()
+        })
+        return clean
+      })
+
+      selectedOriginalIdx.clear()
+      editingCell = null
+      autoRegisterPlants()
+      applyFilters()
+      showApp()
+      updateBulkEquipmentOptions()
+      toast(`CSV importado: ${rows.length} filas, ${columns.length} columnas`, 'success')
+    },
+    error: (err) => toast('Error al importar: ' + err.message, 'error')
+  })
+}
+
+function autoRegisterPlants() {
+  rows.forEach(r => {
+    const id = r[ASSET_COL]
+    if (id && !plants[id]) {
+      // If it doesn't look like a code (SXnnn), treat as both code and name
+      if (!/^SX\d+/i.test(id)) {
+        plants[id] = id
+      }
+      // Codes without names: leave for user to configure
+    }
+  })
+  savePlantsToStorage()
+}
+
+// ============================================================
+// SORTING
+// ============================================================
+function applySort(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortCol = col
+    sortDir = 'asc'
+  }
+
+  filteredIndices.sort((a, b) => {
+    let valA, valB
+
+    if (col === '__type__') {
+      // CREATE (sin WO#) primero en asc, UPDATE primero en desc
+      valA = rows[a][WO_COL] ? 'UPDATE' : 'CREATE'
+      valB = rows[b][WO_COL] ? 'UPDATE' : 'CREATE'
+    } else {
+      valA = rows[a][col] || ''
+      valB = rows[b][col] || ''
+    }
+
+    // Intentar comparar como número si ambos son numéricos
+    const numA = parseFloat(valA)
+    const numB = parseFloat(valB)
+    if (!isNaN(numA) && !isNaN(numB)) {
+      return sortDir === 'asc' ? numA - numB : numB - numA
+    }
+
+    // Intentar comparar como fecha (formato MM-DD-YYYY)
+    if (/^\d{2}-\d{2}-\d{4}/.test(valA) && /^\d{2}-\d{2}-\d{4}/.test(valB)) {
+      const dA = parseCsvDate(valA)
+      const dB = parseCsvDate(valB)
+      if (dA && dB) return sortDir === 'asc' ? dA - dB : dB - dA
+    }
+
+    // Comparación de texto
+    const cmp = valA.localeCompare(valB, 'es', { sensitivity: 'base' })
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  renderTable()
+}
+
+// ============================================================
+// EDIT MODE TOGGLE
+// ============================================================
+function toggleEditMode() {
+  editMode = !editMode
+  const btn = document.getElementById('btn-edit-mode')
+  const table = document.getElementById('main-table')
+  if (editMode) {
+    btn.textContent = 'Ver todo'
+    btn.classList.add('btn-edit-mode-active')
+    btn.title = 'Mostrando solo columnas editables — clic para ver todas'
+    table.classList.add('edit-mode')
+    toast('Modo edición: columnas bloqueadas ocultas', '')
+  } else {
+    btn.textContent = 'Modo edición'
+    btn.classList.remove('btn-edit-mode-active')
+    btn.title = 'Oculta columnas bloqueadas para enfocarte en lo editable'
+    table.classList.remove('edit-mode')
+    toast('Modo completo: todas las columnas visibles', '')
+  }
+}
+
+// ============================================================
+// SHOW / HIDE APP SECTIONS
+// ============================================================
+function showApp() {
+  document.getElementById('empty-state').style.display = 'none'
+  document.getElementById('toolbar').style.display = 'flex'
+  document.getElementById('stats-bar').style.display = 'flex'
+  document.getElementById('table-wrapper').style.display = 'block'
+  populatePlantFilter()
+  renderTable()
+  renderStats()
+}
+
+function showEmptyState() {
+  document.getElementById('empty-state').style.display = 'block'
+  document.getElementById('toolbar').style.display = 'none'
+  document.getElementById('stats-bar').style.display = 'none'
+  document.getElementById('table-wrapper').style.display = 'none'
+}
+
+// ============================================================
+// FILTERING
+// ============================================================
+function applyFilters() {
+  const plant = document.getElementById('filter-plant').value
+  const status = document.getElementById('filter-status').value
+  const type = document.getElementById('filter-type').value
+  const woStatusFilter = document.getElementById('filter-wo-status').value
+  const search = document.getElementById('filter-search').value.toLowerCase()
+
+  filteredIndices = rows.reduce((acc, row, i) => {
+    if (plant && row[ASSET_COL] !== plant) return acc
+    if (status && row[STATUS_COL] !== status) return acc
+    if (type) {
+      const rowType = row[WO_COL] ? 'update' : 'create'
+      if (rowType !== type) return acc
+    }
+    if (woStatusFilter) {
+      const ws = row[WO_STATUS_COL] || ''
+      if (woStatusFilter === 'editable') {
+        // Mostrar solo CREATE (sin WO Status) + UPDATE con O o C
+        const isCreate = !row[WO_COL]
+        const isExportableUpdate = row[WO_COL] && WO_STATUS_EXPORTABLE.includes(ws)
+        if (!isCreate && !isExportableUpdate) return acc
+      } else {
+        if (ws !== woStatusFilter) return acc
+      }
+    }
+    if (search) {
+      const matches = columns.some(col => String(row[col] || '').toLowerCase().includes(search))
+      if (!matches) return acc
+    }
+    acc.push(i)
+    return acc
+  }, [])
+
+  renderTable()
+  renderStats()
+  renderBulkBar()
+}
+
+function populatePlantFilter() {
+  const sel = document.getElementById('filter-plant')
+  const current = sel.value
+  sel.innerHTML = '<option value="">Todas las plantas</option>'
+  const assetIds = [...new Set(rows.map(r => r[ASSET_COL]).filter(Boolean))]
+  assetIds.forEach(id => {
+    const name = plants[id] || id
+    const opt = document.createElement('option')
+    opt.value = id
+    opt.textContent = name
+    sel.appendChild(opt)
+  })
+  if (current) sel.value = current
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function renderStats() {
+  const visible = filteredIndices.map(i => rows[i])
+  const creates = visible.filter(r => !r[WO_COL]).length
+  // UPDATE exportable: tienen WO# y WO Status es O, C, o sin definir
+  const updatesExportable = visible.filter(r => {
+    if (!r[WO_COL]) return false
+    const s = r[WO_STATUS_COL] || ''
+    return !s || WO_STATUS_EXPORTABLE.includes(s)
+  }).length
+  const updatesBlocked = visible.filter(r => {
+    if (!r[WO_COL]) return false
+    const s = r[WO_STATUS_COL] || ''
+    return s && !WO_STATUS_EXPORTABLE.includes(s)
+  }).length
+  document.getElementById('stat-total').textContent = visible.length
+  document.getElementById('stat-create').textContent = creates
+  document.getElementById('stat-update').textContent = updatesExportable
+  const blockedEl = document.getElementById('stat-blocked')
+  if (blockedEl) {
+    document.getElementById('stat-blocked-chip').style.display = updatesBlocked > 0 ? 'inline-flex' : 'none'
+    blockedEl.textContent = updatesBlocked
+  }
+}
+
+// ============================================================
+// TABLE RENDER
+// ============================================================
+function renderTable() {
+  renderHead()
+  renderBody()
+}
+
+function renderHead() {
+  const allChecked = filteredIndices.length > 0 &&
+    filteredIndices.every(i => selectedOriginalIdx.has(i))
+
+  let html = `<tr>`
+  html += `<th><input type="checkbox" id="check-all" ${allChecked?'checked':''} onchange="toggleSelectAll(this.checked)"></th>`
+
+  // Tipo — sorteable
+  const typeActive = sortCol === '__type__'
+  const typeIcon = typeActive ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'
+  html += `<th class="th-type sortable${typeActive?' sort-active':''}" onclick="applySort('__type__')">
+    Tipo <span class="sort-icon">${typeIcon}</span>
+  </th>`
+
+  columns.forEach(col => {
+    const locked = LOCKED_COLS.includes(col)
+    const hideable = HIDE_IN_EDIT_MODE.includes(col)
+    const isActive = sortCol === col
+    const icon = isActive ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'
+    let label = col === ASSET_COL ? 'Planta' : col
+    const hideAttr = hideable ? 'data-col-hide="true"' : ''
+    const cls = [
+      locked ? 'th-locked' : '',
+      'sortable',
+      isActive ? 'sort-active' : ''
+    ].filter(Boolean).join(' ')
+    html += `<th class="${cls}" ${hideAttr} onclick="applySort('${escAttr(col)}')">
+      ${label} <span class="sort-icon">${icon}</span>
+    </th>`
+  })
+  html += `</tr>`
+  document.getElementById('table-head').innerHTML = html
+}
+
+function renderBody() {
+  const tbody = document.getElementById('table-body')
+  if (filteredIndices.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${columns.length + 2}" style="text-align:center;padding:40px;color:var(--text-soft)">Sin resultados para los filtros aplicados</td></tr>`
+    return
+  }
+
+  let html = ''
+  filteredIndices.forEach(origIdx => {
+    const row = rows[origIdx]
+    const isUpdate = !!row[WO_COL]
+    const rowClass = isUpdate ? 'row-update' : 'row-create'
+    const isSelected = selectedOriginalIdx.has(origIdx)
+    const woStatus = row[WO_STATUS_COL] || ''
+    const isBlocked = isUpdate && woStatus && !WO_STATUS_EXPORTABLE.includes(woStatus)
+
+    html += `<tr class="${rowClass}${isSelected?' row-selected':''}${isBlocked?' wo-blocked':''}" data-orig="${origIdx}">`
+
+    // Checkbox
+    html += `<td class="td-check"><input type="checkbox" ${isSelected?'checked':''} onchange="toggleRow(${origIdx}, this.checked)"></td>`
+
+    // Type badge
+    if (isUpdate) {
+      html += `<td class="td-type"><span class="type-badge badge-update">UPDATE</span></td>`
+    } else {
+      html += `<td class="td-type"><span class="type-badge badge-create">CREATE</span></td>`
+    }
+
+    // Columns
+    columns.forEach(col => {
+      html += renderCell(row, col, origIdx)
+    })
+
+    html += `</tr>`
+  })
+
+  tbody.innerHTML = html
+}
+
+function renderCell(row, col, origIdx) {
+  const val = row[col] || ''
+
+  // Work Order Number — locked (ocultable en edit mode)
+  if (col === WO_COL) {
+    return `<td class="td-locked td-wo" data-col-hide="true">${val || '<span style="color:var(--text-soft);font-style:italic;font-size:11px;">—</span>'}</td>`
+  }
+
+  // Asset ID — locked, show plant name
+  if (col === ASSET_COL) {
+    const name = plants[val] || val
+    const showCode = name !== val
+    return `<td class="td-locked">
+      <div class="plant-cell">
+        <span class="plant-name">${escHtml(name)}</span>
+        ${showCode ? `<span class="plant-code">${escHtml(val)}</span>` : ''}
+      </div>
+    </td>`
+  }
+
+  // Created On Date — locked (ocultable en edit mode)
+  if (col === CREATED_COL) {
+    return `<td class="td-locked" data-col-hide="true"><span class="cell-datetime">${val ? formatDateDisplay(val) : '—'}</span></td>`
+  }
+
+  // Inline editing active?
+  if (editingCell && editingCell.origIdx === origIdx && editingCell.col === col) {
+    return renderInlineEditor(col, val, origIdx)
+  }
+
+  // Action Taken — log column
+  if (col === LOG_COL) {
+    const preview = val ? val.split('\n')[0].slice(0, 60) + (val.length > 60 ? '…' : '') : ''
+    const cls = val ? 'log-preview' : 'log-preview cell-empty'
+    return `<td>
+      <div class="log-cell-wrap">
+        <span class="${cls}" onclick="openLogModal(${origIdx})" title="${escHtml(val)}">${preview || 'Sin bitácora'}</span>
+        <button class="btn btn-xs btn-outline" onclick="openLogModal(${origIdx})">+ Nota</button>
+      </div>
+    </td>`
+  }
+
+  // Scheduled Date — editable date
+  if (col === SCHED_COL) {
+    const display = val ? formatDateDisplay(val) : ''
+    const cls = val ? 'cell-val cell-datetime' : 'cell-val cell-empty cell-datetime'
+    return `<td><span class="${cls}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="Clic para editar">${display || '—'}</span></td>`
+  }
+
+  // Ops Status
+  if (col === STATUS_COL) {
+    const badge = renderStatusBadge(val)
+    return `<td><span onclick="startEdit(${origIdx}, '${escAttr(col)}')" style="cursor:pointer" title="Clic para editar">${badge}</span></td>`
+  }
+
+  // Equipment
+  if (col === EQUIP_COL) {
+    const cls = val ? 'cell-val' : 'cell-val cell-empty'
+    return `<td><span class="${cls}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="Clic para editar">${escHtml(val) || '—'}</span></td>`
+  }
+
+  // WO Status — O / C / H con color y tooltip de exportabilidad
+  if (col === WO_STATUS_COL) {
+    if (!val) {
+      return `<td><span class="cell-val cell-empty" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="Clic para editar">—</span></td>`
+    }
+    const labels = { O: 'Open', C: 'Completed', H: 'Closed' }
+    const label = labels[val] || val
+    const exportable = WO_STATUS_EXPORTABLE.includes(val)
+    const hint = exportable ? 'Se incluye en UPDATE' : 'No se exporta en UPDATE'
+    return `<td>
+      <span class="wo-status-badge wo-status-${val}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="${hint}">
+        <span class="wo-dot"></span>${val} · ${label}
+      </span>
+    </td>`
+  }
+
+  // Default editable text
+  const cls = val ? 'cell-val' : 'cell-val cell-empty'
+  const displayVal = val.length > 55 ? val.slice(0, 55) + '…' : val
+  return `<td><span class="${cls}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="${escHtml(val)}">${escHtml(displayVal) || '—'}</span></td>`
+}
+
+function renderInlineEditor(col, val, origIdx) {
+  // Date field
+  if (col === SCHED_COL) {
+    const inputVal = csvDateToInput(val)
+    return `<td>
+      <input type="datetime-local" class="cell-input" style="width:190px;" value="${inputVal}"
+        onblur="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'datetime')"
+        onkeydown="handleEditKey(event, ${origIdx}, '${escAttr(col)}', this)"
+        id="inline-input" autofocus>
+    </td>`
+  }
+
+  // Status dropdown
+  if (col === STATUS_COL) {
+    const opts = STATUS_OPTS.map(s => `<option value="${s}"${s===val?'selected':''}>${s}</option>`).join('')
+    return `<td>
+      <select class="cell-select" onchange="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onblur="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onkeydown="if(event.key==='Escape'){cancelEdit();renderTable()}" id="inline-input" autofocus>
+        ${opts}
+      </select>
+    </td>`
+  }
+
+  // WO Status dropdown — O / C / H
+  if (col === WO_STATUS_COL) {
+    const woOpts = [
+      { v: 'O', l: 'O · Open (se exporta)' },
+      { v: 'C', l: 'C · Completed (se exporta)' },
+      { v: 'H', l: 'H · Closed (NO se exporta)' }
+    ]
+    const opts = woOpts.map(o => `<option value="${o.v}"${o.v===val?'selected':''}>${o.l}</option>`).join('')
+    return `<td>
+      <select class="cell-select" onchange="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onblur="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onkeydown="if(event.key==='Escape'){cancelEdit();renderTable()}" id="inline-input" autofocus>
+        ${opts}
+      </select>
+    </td>`
+  }
+
+  // Equipment dropdown
+  if (col === EQUIP_COL) {
+    const allEquip = [...new Set([...EQUIPMENT_OPTS, ...rows.map(r => r[EQUIP_COL]).filter(Boolean)])]
+    const opts = allEquip.map(e => `<option value="${e}"${e===val?'selected':''}>${e || '— ninguno'}</option>`).join('')
+    return `<td>
+      <select class="cell-select" onchange="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onblur="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+        onkeydown="if(event.key==='Escape'){cancelEdit();renderTable()}" id="inline-input" autofocus>
+        ${opts}
+      </select>
+    </td>`
+  }
+
+  // Default text input
+  return `<td>
+    <input type="text" class="cell-input" value="${escHtml(val)}"
+      onblur="commitEdit(${origIdx}, '${escAttr(col)}', this.value, 'text')"
+      onkeydown="handleEditKey(event, ${origIdx}, '${escAttr(col)}', this)"
+      id="inline-input" autofocus>
+  </td>`
+}
+
+function handleEditKey(e, origIdx, col, el) {
+  if (e.key === 'Enter') { e.preventDefault(); commitEdit(origIdx, col, el.value, col === SCHED_COL ? 'datetime' : 'text') }
+  if (e.key === 'Escape') { cancelEdit(); renderTable() }
+}
+
+function startEdit(origIdx, col) {
+  commitPendingEdit()
+  editingCell = { origIdx, col }
+  renderTable()
+  setTimeout(() => {
+    const el = document.getElementById('inline-input')
+    if (el) { el.focus(); if (el.select) el.select() }
+  }, 20)
+}
+
+function commitEdit(origIdx, col, value, type) {
+  if (!editingCell) return
+  if (type === 'datetime') {
+    rows[origIdx][col] = inputToCsvDate(value)
+  } else {
+    rows[origIdx][col] = value
+  }
+  editingCell = null
+  renderTable()
+  renderStats()
+}
+
+function cancelEdit() {
+  editingCell = null
+}
+
+function commitPendingEdit() {
+  if (!editingCell) return
+  const el = document.getElementById('inline-input')
+  if (el) {
+    const { origIdx, col } = editingCell
+    const isDate = col === SCHED_COL
+    const val = isDate ? inputToCsvDate(el.value) : el.value
+    rows[origIdx][col] = val
+  }
+  editingCell = null
+}
+
+// ============================================================
+// SELECTION & BULK EDIT
+// ============================================================
+function toggleRow(origIdx, checked) {
+  if (checked) selectedOriginalIdx.add(origIdx)
+  else selectedOriginalIdx.delete(origIdx)
+  renderBulkBar()
+  updateRowSelectedClass(origIdx, checked)
+  // Update select-all checkbox
+  const allChecked = filteredIndices.length > 0 && filteredIndices.every(i => selectedOriginalIdx.has(i))
+  const ca = document.getElementById('check-all')
+  if (ca) ca.checked = allChecked
+}
+
+function toggleSelectAll(checked) {
+  filteredIndices.forEach(i => {
+    if (checked) selectedOriginalIdx.add(i)
+    else selectedOriginalIdx.delete(i)
+  })
+  renderTable()
+  renderBulkBar()
+}
+
+function clearSelection() {
+  selectedOriginalIdx.clear()
+  renderTable()
+  renderBulkBar()
+}
+
+function updateRowSelectedClass(origIdx, selected) {
+  const row = document.querySelector(`tr[data-orig="${origIdx}"]`)
+  if (row) {
+    if (selected) row.classList.add('row-selected')
+    else row.classList.remove('row-selected')
+  }
+}
+
+function renderBulkBar() {
+  const bar = document.getElementById('bulk-bar')
+  const n = selectedOriginalIdx.size
+  if (n === 0) {
+    bar.classList.remove('visible')
+    return
+  }
+  bar.classList.add('visible')
+  document.getElementById('bulk-count-label').textContent = `${n} fila${n > 1 ? 's' : ''}`
+}
+
+function updateBulkEquipmentOptions() {
+  const sel = document.getElementById('bulk-equipment')
+  const allEquip = [...new Set([...EQUIPMENT_OPTS, ...rows.map(r => r[EQUIP_COL]).filter(Boolean)])]
+  sel.innerHTML = '<option value="">— Equipment</option>' +
+    allEquip.filter(Boolean).map(e => `<option value="${e}">${e}</option>`).join('')
+}
+
+function applyBulkField(col, val) {
+  if (!val) return
+  selectedOriginalIdx.forEach(i => { rows[i][col] = val })
+  renderTable()
+  renderStats()
+  toast(`${selectedOriginalIdx.size} filas → ${col}: "${val}"`, 'success')
+  // Reset the select
+  setTimeout(() => {
+    if (col === STATUS_COL) document.getElementById('bulk-status').value = ''
+    if (col === EQUIP_COL) document.getElementById('bulk-equipment').value = ''
+    if (col === WO_STATUS_COL) document.getElementById('bulk-wo-status').value = ''
+  }, 100)
+}
+
+function applyBulkDate() {
+  const val = document.getElementById('bulk-date').value
+  if (!val) { toast('Seleccioná una fecha primero', 'error'); return }
+  const csvVal = inputToCsvDate(val)
+  selectedOriginalIdx.forEach(i => { rows[i][SCHED_COL] = csvVal })
+  renderTable()
+  renderStats()
+  toast(`${selectedOriginalIdx.size} filas → Scheduled Date actualizada`, 'success')
+}
+
+// ============================================================
+// LOG MODAL (Action Taken)
+// ============================================================
+function openLogModal(origIdx) {
+  logTarget = origIdx
+  const val = rows[origIdx][LOG_COL] || ''
+  const ts = formatLogTimestamp()
+
+  document.getElementById('log-history-display').innerHTML =
+    val ? escHtml(val) : '<span class="log-empty-msg">Sin entradas previas.</span>'
+  document.getElementById('log-new-entry').value = ''
+  document.getElementById('log-raw-edit').value = val
+  document.getElementById('log-ts-hint').textContent = ts + ':'
+  document.getElementById('log-date-preview').textContent = ''
+
+  openModal('log')
+  setTimeout(() => document.getElementById('log-new-entry').focus(), 100)
+}
+
+function saveLogEntry() {
+  const newText = document.getElementById('log-new-entry').value.trim()
+  if (!newText) { toast('Escribí algo primero', 'error'); return }
+  const ts = formatLogTimestamp()
+  const existing = rows[logTarget][LOG_COL] || ''
+  const entry = `${ts}: ${newText}`
+  rows[logTarget][LOG_COL] = existing ? `${entry}\n${existing}` : entry
+  closeModal('log')
+  renderTable()
+  toast('Entrada añadida a la bitácora', 'success')
+}
+
+function saveLogRaw() {
+  const raw = document.getElementById('log-raw-edit').value
+  rows[logTarget][LOG_COL] = raw
+  closeModal('log')
+  renderTable()
+  toast('Texto guardado', 'success')
+}
+
+// ============================================================
+// PLANTS MODAL
+// ============================================================
+function openPlantsModal() {
+  renderPlantList()
+  openModal('plants')
+}
+
+function renderPlantList() {
+  const container = document.getElementById('plant-list-container')
+  const ids = Object.keys(plants)
+  if (ids.length === 0) {
+    container.innerHTML = '<div class="plant-list"><div class="plant-empty">Ninguna planta configurada aún.</div></div>'
+    return
+  }
+  let html = '<div class="plant-list">'
+  ids.sort().forEach(id => {
+    const name = plants[id]
+    html += `<div class="plant-item">
+      <span class="plant-item-code">${escHtml(id)}</span>
+      <span class="plant-item-name">${escHtml(name)}</span>
+      <div class="plant-item-actions">
+        <button class="btn btn-xs btn-outline" onclick="editPlant('${escAttr(id)}')">Editar</button>
+        <button class="btn btn-xs btn-danger" onclick="deletePlant('${escAttr(id)}')">Eliminar</button>
+      </div>
+    </div>`
+  })
+  html += '</div>'
+  container.innerHTML = html
+}
+
+function addPlant() {
+  const code = document.getElementById('new-plant-code').value.trim()
+  const name = document.getElementById('new-plant-name').value.trim()
+  if (!code || !name) { toast('Asset ID y nombre son requeridos', 'error'); return }
+  plants[code] = name
+  savePlantsToStorage()
+  document.getElementById('new-plant-code').value = ''
+  document.getElementById('new-plant-name').value = ''
+  renderPlantList()
+  populatePlantFilter()
+  renderTable()
+  toast(`Planta "${name}" añadida`, 'success')
+}
+
+function editPlant(id) {
+  const current = plants[id] || ''
+  const newName = prompt(`Nuevo nombre para ${id}:`, current)
+  if (newName !== null && newName.trim()) {
+    plants[id] = newName.trim()
+    savePlantsToStorage()
+    renderPlantList()
+    populatePlantFilter()
+    renderTable()
+    toast('Planta actualizada', 'success')
+  }
+}
+
+function deletePlant(id) {
+  if (!confirm(`¿Eliminar planta "${plants[id]}" (${id})?`)) return
+  delete plants[id]
+  savePlantsToStorage()
+  renderPlantList()
+  populatePlantFilter()
+  renderTable()
+  toast('Planta eliminada', '')
+}
+
+// ============================================================
+// NEW ROW MODAL
+// ============================================================
+function openNewRowModal() {
+  // Populate plant dropdown
+  const sel = document.getElementById('new-asset-id')
+  const allIds = [...new Set([
+    ...Object.keys(plants),
+    ...rows.map(r => r[ASSET_COL]).filter(Boolean)
+  ])].sort()
+  sel.innerHTML = '<option value="">Seleccioná una planta…</option>' +
+    allIds.map(id => `<option value="${id}">${plants[id] ? plants[id] + ' (' + id + ')' : id}</option>`).join('')
+
+  // Populate equipment dropdown
+  const eqSel = document.getElementById('new-equipment')
+  const allEquip = [...new Set([...EQUIPMENT_OPTS, ...rows.map(r => r[EQUIP_COL]).filter(Boolean)])]
+  eqSel.innerHTML = allEquip.map(e => `<option value="${e}">${e || '— ninguno'}</option>`).join('')
+
+  // Set default scheduled date to today
+  const now = new Date()
+  const pad = n => String(n).padStart(2,'0')
+  document.getElementById('new-scheduled-date').value =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+
+  // Extra fields for dynamic columns
+  const extraCols = columns.filter(c =>
+    !LOCKED_COLS.includes(c) &&
+    c !== STATUS_COL && c !== EQUIP_COL && c !== LOG_COL &&
+    c !== 'Brief Description' && c !== SCHED_COL && c !== WO_STATUS_COL
+  )
+  const extraContainer = document.getElementById('new-row-extra-fields')
+  if (extraCols.length > 0) {
+    extraContainer.innerHTML = '<hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">' +
+      '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Columnas adicionales</div>' +
+      '<div class="form-row">' +
+      extraCols.map(col =>
+        `<div class="form-group">
+          <label class="form-label">${escHtml(col)}</label>
+          <input type="text" class="form-input" data-extracol="${escAttr(col)}" placeholder="${escHtml(col)}…">
+        </div>`
+      ).join('') +
+      '</div>'
+  } else {
+    extraContainer.innerHTML = ''
+  }
+
+  // Clear fields
+  document.getElementById('new-description').value = ''
+  document.getElementById('new-action-taken').value = ''
+
+  openModal('newrow')
+}
+
+function addNewRow() {
+  const assetId = document.getElementById('new-asset-id').value
+  const description = document.getElementById('new-description').value.trim()
+  if (!assetId) { toast('Seleccioná una planta', 'error'); return }
+  if (!description) { toast('La descripción es requerida', 'error'); return }
+
+  const now = new Date()
+  const newRow = {}
+  columns.forEach(col => newRow[col] = '')
+
+  newRow[WO_COL] = ''
+  newRow[ASSET_COL] = assetId
+  newRow[CREATED_COL] = formatCsvDate(now)
+  newRow[SCHED_COL] = inputToCsvDate(document.getElementById('new-scheduled-date').value)
+  newRow[STATUS_COL] = document.getElementById('new-status').value
+  newRow[WO_STATUS_COL] = document.getElementById('new-wo-status') ? document.getElementById('new-wo-status').value : 'O'
+  newRow[EQUIP_COL] = document.getElementById('new-equipment').value
+  newRow['Brief Description'] = description
+  newRow[LOG_COL] = document.getElementById('new-action-taken').value.trim()
+
+  // Extra fields
+  document.querySelectorAll('[data-extracol]').forEach(el => {
+    newRow[el.dataset.extracol] = el.value
+  })
+
+  rows.unshift(newRow)
+  closeModal('newrow')
+  applyFilters()
+  toast('Incidente creado (modo CREATE)', 'success')
+}
+
+// ============================================================
+// CSV EXPORT
+// ============================================================
+function exportCSV(type) {
+  const exportRows = rows.filter(r => {
+    const hasWO = !!r[WO_COL]
+    if (type === 'create') return !hasWO
+    // UPDATE: debe tener WO Number Y WO Status debe ser O o C (nunca H)
+    if (!hasWO) return false
+    const woStatus = r[WO_STATUS_COL] || ''
+    // Si no tiene WO Status definido, lo incluimos (columna no existe en el CSV)
+    if (!woStatus) return true
+    return WO_STATUS_EXPORTABLE.includes(woStatus)
+  })
+
+  if (exportRows.length === 0) {
+    const hint = type === 'update' ? ' (WO Status H quedan excluidas)' : ''
+    toast(`Sin filas para exportar${hint}`, 'error')
+    return
+  }
+
+  const csv = Papa.unparse({ fields: columns, data: exportRows.map(r => columns.map(c => r[c] || '')) })
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const date = new Date()
+  const pad = n => String(n).padStart(2,'0')
+  const dateStr = `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}`
+  a.href = url
+  a.download = `work-orders-${type.toUpperCase()}-${dateStr}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  toast(`Exportado: ${exportRows.length} filas (${type.toUpperCase()})`, 'success')
+}
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+function openModal(name) {
+  document.getElementById(`overlay-${name}`).classList.add('open')
+}
+function closeModal(name) {
+  document.getElementById(`overlay-${name}`).classList.remove('open')
+}
+
+// ============================================================
+// HELPER UTILS
+// ============================================================
+function renderStatusBadge(val) {
+  const cls = val === 'Open' ? 'status-open' : val === 'Closed' ? 'status-closed' : 'status-other'
+  return `<span class="status-badge ${cls}">${val || '—'}</span>`
+}
+
+function formatDateDisplay(str) {
+  const d = parseCsvDate(str)
+  if (!d) return str
+  const pad = n => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+function escAttr(str) {
+  return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;')
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function toast(msg, type='') {
+  const container = document.getElementById('toast-container')
+  const el = document.createElement('div')
+  el.className = `toast ${type ? 'toast-' + type : ''}`
+  el.textContent = msg
+  container.appendChild(el)
+  setTimeout(() => {
+    el.style.opacity = '0'
+    el.style.transition = 'opacity 0.3s'
+    setTimeout(() => el.remove(), 300)
+  }, 3000)
+}
+
+// ============================================================
+// DRAG & DROP
+// ============================================================
+const dropZone = document.getElementById('drop-zone')
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover') })
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'))
+dropZone.addEventListener('drop', e => {
+  e.preventDefault()
+  dropZone.classList.remove('dragover')
+  const file = e.dataTransfer.files[0]
+  if (file && file.name.endsWith('.csv')) importCsv(file)
+  else toast('Por favor usá un archivo .csv', 'error')
+})
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['plants', 'newrow', 'log'].forEach(name => {
+      const el = document.getElementById(`overlay-${name}`)
+      if (el && el.classList.contains('open')) closeModal(name)
+    })
+  }
+})
+
+// Search on input
+document.getElementById('filter-search').addEventListener('input', applyFilters)
+</script>
+</body>
+</html>
