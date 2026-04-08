@@ -852,8 +852,8 @@ details[open] summary::before { content: '− '; }
   <div class="toolbar-sep"></div>
   <button class="btn btn-ghost btn-sm" onclick="openNewRowModal()">+ Nuevo incidente</button>
   <div class="toolbar-sep"></div>
-  <button class="btn btn-create btn-sm" onclick="exportCSV('create')">Exportar CREATE</button>
-  <button class="btn btn-update btn-sm" onclick="exportCSV('update')">Exportar UPDATE</button>
+  <button class="btn btn-create btn-sm" onclick="openExportModal('create')">Exportar CREATE</button>
+  <button class="btn btn-update btn-sm" onclick="openExportModal('update')">Exportar UPDATE</button>
 </div>
 
 <!-- BULK BAR -->
@@ -878,6 +878,7 @@ details[open] summary::before { content: '− '; }
   <button class="btn btn-sm btn-ghost" onclick="applyBulkDate()">Aplicar fecha</button>
   <div class="spacer"></div>
   <button class="btn btn-ghost btn-sm" onclick="copySelectionToExcel()" title="Copia filas seleccionadas al portapapeles (formato Excel)">⊞ Copiar al Excel</button>
+  <button class="btn btn-danger btn-sm" onclick="deleteSelectedRows()">Eliminar seleccionadas</button>
   <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Deseleccionar</button>
 </div>
 
@@ -1049,6 +1050,48 @@ details[open] summary::before { content: '− '; }
   </div>
 </div>
 
+<!-- MODAL: RESOLUTION DATE -->
+<div class="overlay" id="overlay-resdate">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Fecha de Resolución</h3>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:14px;color:var(--text-muted);font-size:13px">El incidente fue marcado como <b style="color:var(--success)">Closed</b>. ¿Cuál es la fecha y hora de resolución?</p>
+      <div class="form-group">
+        <label class="form-label">Resolution Date/Time <span class="required">*</span></label>
+        <input type="datetime-local" class="form-input" id="res-date-input">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeResDateModal(false)">Omitir</button>
+      <button class="btn btn-primary" onclick="closeResDateModal(true)">Guardar fecha</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: EXPORT BY ASSET ID -->
+<div class="overlay" id="overlay-export" onclick="closeModal('export')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Exportar CSV — <span id="export-modal-type" style="color:var(--primary)">CREATE</span></h3>
+      <button class="modal-close" onclick="closeModal('export')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Asset ID (Planta) <span class="required">*</span></label>
+        <select class="form-select" id="export-asset-id"></select>
+        <div class="form-hint">El cliente solo acepta exportación de un Asset ID a la vez.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('export')">Cancelar</button>
+      <button class="btn btn-create btn-sm" id="export-btn-create" onclick="doExport('create')" style="display:none">Exportar CREATE</button>
+      <button class="btn btn-update btn-sm" id="export-btn-update" onclick="doExport('update')" style="display:none">Exportar UPDATE</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: COLUMN PICKER (Copiar al Excel) -->
 <div class="overlay" id="overlay-colpicker" onclick="closeModal('colpicker')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
@@ -1142,8 +1185,20 @@ const DEFAULT_PLANTS = {
 function loadPlants() {
   try {
     const saved = JSON.parse(localStorage.getItem('cmms_plants') || '{}')
-    // Merge: defaults primero, localStorage encima (permite agregar/editar nuevas plantas)
-    return { ...DEFAULT_PLANTS, ...saved }
+    const merged = { ...DEFAULT_PLANTS, ...saved }
+    // Collect all names that already have a proper SX code key
+    const sxNames = new Set(
+      Object.entries(merged)
+        .filter(([k]) => /^SX\d+/i.test(k))
+        .map(([, v]) => v.toLowerCase())
+    )
+    // Remove entries where key === value AND the name already exists under an SX code
+    const cleaned = {}
+    for (const [k, v] of Object.entries(merged)) {
+      if (k === v && sxNames.has(v.toLowerCase())) continue
+      cleaned[k] = v
+    }
+    return cleaned
   } catch {
     return { ...DEFAULT_PLANTS }
   }
@@ -1152,6 +1207,70 @@ function savePlantsToStorage() {
   localStorage.setItem('cmms_plants', JSON.stringify(plants))
 }
 plants = loadPlants()
+
+// ============================================================
+// INDEXEDDB PERSISTENCE
+// ============================================================
+const DB_NAME = 'cmms_db'
+const DB_VERSION = 1
+const STORE_NAME = 'work_orders'
+let db = null
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    req.onupgradeneeded = e => {
+      const idb = e.target.result
+      if (!idb.objectStoreNames.contains(STORE_NAME)) {
+        idb.createObjectStore(STORE_NAME, { keyPath: '_idbid', autoIncrement: true })
+      }
+      if (!idb.objectStoreNames.contains('meta')) {
+        idb.createObjectStore('meta', { keyPath: 'key' })
+      }
+    }
+    req.onsuccess = e => { db = e.target.result; resolve(db) }
+    req.onerror = e => reject(e.target.error)
+  })
+}
+
+function saveAllRowsToDB() {
+  if (!db) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORE_NAME, 'meta'], 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const meta = tx.objectStore('meta')
+    store.clear()
+    rows.forEach((row, i) => {
+      store.put({ ...row, _idbid: i + 1 })
+    })
+    meta.put({ key: 'columns', value: columns })
+    tx.oncomplete = resolve
+    tx.onerror = e => reject(e.target.error)
+  })
+}
+
+function loadAllRowsFromDB() {
+  if (!db) return Promise.resolve({ rows: [], columns: [] })
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORE_NAME, 'meta'], 'readonly')
+    const store = tx.objectStore(STORE_NAME)
+    const meta = tx.objectStore('meta')
+    let loadedRows = []
+    let loadedColumns = []
+    store.getAll().onsuccess = e => {
+      loadedRows = e.target.result.map(r => {
+        const clean = { ...r }
+        delete clean._idbid
+        return clean
+      })
+    }
+    meta.get('columns').onsuccess = e => {
+      if (e.target.result) loadedColumns = e.target.result.value
+    }
+    tx.oncomplete = () => resolve({ rows: loadedRows, columns: loadedColumns })
+    tx.onerror = e => reject(e.target.error)
+  })
+}
 
 // ============================================================
 // DATE UTILITIES
@@ -1199,41 +1318,73 @@ function importCsv(file) {
     header: true,
     skipEmptyLines: true,
     encoding: 'UTF-8',
-    complete: (results) => {
+    complete: async (results) => {
       // Normalize column names (trim BOM, whitespace, quotes)
       const rawFields = results.meta.fields || []
-      columns = rawFields.map(f => f.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim())
+      const newColumns = rawFields.map(f => f.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim())
 
       // Remap row keys with normalized column names
-      rows = results.data.map(row => {
+      const newRows = results.data.map(row => {
         const clean = {}
         rawFields.forEach((rawKey, i) => {
-          clean[columns[i]] = (row[rawKey] || '').trim()
+          clean[newColumns[i]] = (row[rawKey] || '').trim()
         })
         return clean
+      })
+
+      // Merge columns (add any new ones not already tracked)
+      newColumns.forEach(col => {
+        if (!columns.includes(col)) columns.push(col)
+      })
+      if (columns.length === 0) columns = newColumns
+
+      // Merge rows: deduplicate by Work Order Number
+      let created = 0, updated = 0
+      newRows.forEach(newRow => {
+        const woNum = newRow[WO_COL]
+        if (woNum) {
+          const existingIdx = rows.findIndex(r => r[WO_COL] === woNum)
+          if (existingIdx >= 0) {
+            // Update existing row — CSV wins for most fields, preserve local-only edits
+            rows[existingIdx] = { ...rows[existingIdx], ...newRow }
+            updated++
+          } else {
+            rows.push(newRow)
+            created++
+          }
+        } else {
+          // No WO Number → CREATE row, just append
+          rows.push(newRow)
+          created++
+        }
       })
 
       selectedOriginalIdx.clear()
       editingCell = null
       autoRegisterPlants()
+      await saveAllRowsToDB()
       applyFilters()
       showApp()
       updateBulkEquipmentOptions()
-      toast(`CSV importado: ${rows.length} filas, ${columns.length} columnas`, 'success')
+      toast(`Importado: ${created} nuevos, ${updated} actualizados (total: ${rows.length})`, 'success')
     },
     error: (err) => toast('Error al importar: ' + err.message, 'error')
   })
 }
 
 function autoRegisterPlants() {
+  const existingNames = new Set(Object.values(plants).map(n => n.toLowerCase()))
   rows.forEach(r => {
     const id = r[ASSET_COL]
     if (id && !plants[id]) {
-      // If it doesn't look like a code (SXnnn), treat as both code and name
       if (!/^SX\d+/i.test(id)) {
-        plants[id] = id
+        // Solo agregar si el nombre no existe ya bajo un código SX
+        if (!existingNames.has(id.toLowerCase())) {
+          plants[id] = id
+          existingNames.add(id.toLowerCase())
+        }
       }
-      // Codes without names: leave for user to configure
+      // SX codes sin nombre: dejar para que el usuario configure
     }
   })
   savePlantsToStorage()
@@ -1447,6 +1598,7 @@ function renderHead() {
       ${label} <span class="sort-icon">${icon}</span>
     </th>`
   })
+  html += `<th style="width:50px;text-align:center"></th>`
   html += `</tr>`
   document.getElementById('table-head').innerHTML = html
 }
@@ -1483,6 +1635,11 @@ function renderBody() {
     columns.forEach(col => {
       html += renderCell(row, col, origIdx)
     })
+
+    // Delete button
+    html += `<td style="text-align:center;padding:4px 6px;">
+      <button class="btn btn-danger btn-xs" onclick="deleteRow(${origIdx})" title="Eliminar fila">✕</button>
+    </td>`
 
     html += `</tr>`
   })
@@ -1659,6 +1816,16 @@ function commitEdit(origIdx, col, value, type) {
     rows[origIdx][col] = value
   }
   editingCell = null
+
+  // When Ops Status changes to Closed → ask for Resolution Date/Time
+  if (col === STATUS_COL && value === 'Closed') {
+    const resCol = 'Resolution Date/Time'
+    if (columns.includes(resCol) && !rows[origIdx][resCol]) {
+      openResDateModal(origIdx)
+    }
+  }
+
+  saveAllRowsToDB()
   renderTable()
   renderStats()
 }
@@ -1737,6 +1904,7 @@ function updateBulkEquipmentOptions() {
 function applyBulkField(col, val) {
   if (!val) return
   selectedOriginalIdx.forEach(i => { rows[i][col] = val })
+  saveAllRowsToDB()
   renderTable()
   renderStats()
   toast(`${selectedOriginalIdx.size} filas → ${col}: "${val}"`, 'success')
@@ -1753,6 +1921,7 @@ function applyBulkDate() {
   if (!val) { toast('Seleccioná una fecha primero', 'error'); return }
   const csvVal = inputToCsvDate(val)
   selectedOriginalIdx.forEach(i => { rows[i][SCHED_COL] = csvVal })
+  saveAllRowsToDB()
   renderTable()
   renderStats()
   toast(`${selectedOriginalIdx.size} filas → Scheduled Date actualizada`, 'success')
@@ -1948,6 +2117,7 @@ function addNewRow() {
 
   rows.unshift(newRow)
   closeModal('newrow')
+  saveAllRowsToDB()
   applyFilters()
   toast('Incidente creado (modo CREATE)', 'success')
 }
@@ -1955,8 +2125,61 @@ function addNewRow() {
 // ============================================================
 // CSV EXPORT
 // ============================================================
-function exportCSV(type) {
+// ============================================================
+// DELETE ROW
+// ============================================================
+function deleteRow(origIdx) {
+  const row = rows[origIdx]
+  const desc = row['Brief Description'] || row[WO_COL] || 'esta fila'
+  if (!confirm(`¿Eliminar "${desc.slice(0,60)}"?`)) return
+  rows.splice(origIdx, 1)
+  selectedOriginalIdx.clear()
+  saveAllRowsToDB()
+  applyFilters()
+  toast('Fila eliminada', '')
+}
+
+function deleteSelectedRows() {
+  const n = selectedOriginalIdx.size
+  if (n === 0) return
+  if (!confirm(`¿Eliminar ${n} fila${n > 1 ? 's' : ''} seleccionada${n > 1 ? 's' : ''}?`)) return
+  const toDelete = [...selectedOriginalIdx].sort((a, b) => b - a) // mayor a menor para no desplazar índices
+  toDelete.forEach(i => rows.splice(i, 1))
+  selectedOriginalIdx.clear()
+  saveAllRowsToDB()
+  applyFilters()
+  toast(`${n} fila${n > 1 ? 's' : ''} eliminada${n > 1 ? 's' : ''}`, '')
+}
+
+// ============================================================
+// EXPORT MODAL
+// ============================================================
+function openExportModal(type) {
+  const sel = document.getElementById('export-asset-id')
+  const assetIds = [...new Set(rows.map(r => r[ASSET_COL]).filter(Boolean))].sort()
+  sel.innerHTML = '<option value="">— Seleccioná una planta —</option>' +
+    assetIds.map(id => {
+      const name = plants[id]
+      const label = (name && name !== id) ? `${name} (${id})` : id
+      return `<option value="${id}">${label}</option>`
+    }).join('')
+  document.getElementById('export-modal-type').textContent = type.toUpperCase()
+  // Show only the correct export button
+  document.getElementById('export-btn-create').style.display = type === 'create' ? 'inline-flex' : 'none'
+  document.getElementById('export-btn-update').style.display = type === 'update' ? 'inline-flex' : 'none'
+  openModal('export')
+}
+
+function doExport(type) {
+  const assetId = document.getElementById('export-asset-id').value
+  if (!assetId) { toast('Seleccioná un Asset ID para exportar', 'error'); return }
+  closeModal('export')
+  exportCSV(type, assetId)
+}
+
+function exportCSV(type, assetId) {
   const exportRows = rows.filter(r => {
+    if (assetId && r[ASSET_COL] !== assetId) return false
     const hasWO = !!r[WO_COL]
     if (type === 'create') return !hasWO
     // UPDATE: debe tener WO Number Y WO Status debe ser O o C (nunca H)
@@ -1973,6 +2196,7 @@ function exportCSV(type) {
     return
   }
 
+  const assetName = assetId ? (plants[assetId] || assetId) : 'TODOS'
   const csv = Papa.unparse({ fields: columns, data: exportRows.map(r => columns.map(c => r[c] || '')) })
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
@@ -1980,13 +2204,41 @@ function exportCSV(type) {
   const date = new Date()
   const pad = n => String(n).padStart(2,'0')
   const dateStr = `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}`
+  const assetStr = assetId ? `-${assetId}` : ''
   a.href = url
-  a.download = `work-orders-${type.toUpperCase()}-${dateStr}.csv`
+  a.download = `work-orders-${type.toUpperCase()}${assetStr}-${dateStr}.csv`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
-  toast(`Exportado: ${exportRows.length} filas (${type.toUpperCase()})`, 'success')
+  toast(`Exportado: ${exportRows.length} filas (${type.toUpperCase()} — ${assetName})`, 'success')
+}
+
+// ============================================================
+// RESOLUTION DATE MODAL
+// ============================================================
+let resDateTargetIdx = null
+
+function openResDateModal(origIdx) {
+  resDateTargetIdx = origIdx
+  const now = new Date()
+  const pad = n => String(n).padStart(2,'0')
+  document.getElementById('res-date-input').value =
+    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`
+  openModal('resdate')
+}
+
+function closeResDateModal(save) {
+  if (save && resDateTargetIdx !== null) {
+    const val = document.getElementById('res-date-input').value
+    if (!val) { toast('Ingresá una fecha válida', 'error'); return }
+    rows[resDateTargetIdx]['Resolution Date/Time'] = inputToCsvDate(val)
+    saveAllRowsToDB()
+    renderTable()
+    toast('Fecha de resolución guardada', 'success')
+  }
+  closeModal('resdate')
+  resDateTargetIdx = null
 }
 
 // ============================================================
@@ -2059,7 +2311,7 @@ dropZone.addEventListener('drop', e => {
 // Close modal on Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['plants', 'newrow', 'log', 'colpicker'].forEach(name => {
+    ['plants', 'newrow', 'log', 'colpicker', 'resdate', 'export'].forEach(name => {
       const el = document.getElementById(`overlay-${name}`)
       if (el && el.classList.contains('open')) closeModal(name)
     })
@@ -2282,6 +2534,33 @@ function copySelectionToExcel() {
     })
     .catch(() => toast('No se pudo copiar al portapapeles', 'error'))
 }
+
+// ============================================================
+// STARTUP — Load from IndexedDB
+// ============================================================
+initDB().then(async () => {
+  const { rows: savedRows, columns: savedColumns } = await loadAllRowsFromDB()
+  if (savedRows.length > 0) {
+    rows = savedRows
+    columns = savedColumns.length > 0 ? savedColumns : []
+    autoRegisterPlants()
+    showApp()
+    updateBulkEquipmentOptions()
+    toast(`${rows.length} incidentes cargados desde base de datos local`, 'success')
+  }
+}).catch(err => {
+  console.error('Error inicializando DB:', err)
+})
+
+// Add resdate and export to escape key handler
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['resdate', 'export'].forEach(name => {
+      const el = document.getElementById(`overlay-${name}`)
+      if (el && el.classList.contains('open')) closeModal(name)
+    })
+  }
+})
 </script>
 </body>
 </html>
