@@ -756,6 +756,46 @@ details[open] summary::before { content: '− '; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-soft); }
 
+/* ── CHAR COUNTER ─────────────────────────────── */
+.char-counter {
+  font-size: 11px;
+  text-align: right;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+  transition: color 0.2s;
+}
+.char-ok   { color: var(--text-soft); }
+.char-warn { color: var(--warning); font-weight: 500; }
+.char-over { color: var(--danger); font-weight: 700; }
+
+/* ── COLUMN PICKER ─────────────────────────────── */
+.col-picker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.col-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+}
+.col-picker-item:hover { background: var(--surface2); }
+.col-picker-item.cp-selected {
+  background: var(--primary-dim);
+  border-color: rgba(99,102,241,0.3);
+  color: #818cf8;
+}
+.col-picker-item input { margin: 0; pointer-events: none; accent-color: var(--primary); }
+
 /* ── RESPONSIVE ─────────────────────────────── */
 @media (max-width: 640px) {
   .table-wrapper { margin: 8px; }
@@ -807,6 +847,7 @@ details[open] summary::before { content: '− '; }
   <input type="text" class="filter-input" id="filter-search" placeholder="Buscar...">
   <div class="toolbar-sep"></div>
   <button class="btn btn-ghost btn-sm" id="btn-edit-mode" onclick="toggleEditMode()" title="Oculta columnas bloqueadas para enfocarte en lo editable">Modo edición</button>
+  <button class="btn btn-ghost btn-sm" onclick="openColPickerModal()" title="Elegí columnas y copiá filas al Excel">⊞ Copiar al Excel</button>
   <div class="spacer"></div>
   <div class="toolbar-sep"></div>
   <button class="btn btn-ghost btn-sm" onclick="openNewRowModal()">+ Nuevo incidente</button>
@@ -836,6 +877,7 @@ details[open] summary::before { content: '− '; }
   <input type="datetime-local" class="filter-select" id="bulk-date">
   <button class="btn btn-sm btn-ghost" onclick="applyBulkDate()">Aplicar fecha</button>
   <div class="spacer"></div>
+  <button class="btn btn-ghost btn-sm" onclick="copySelectionToExcel()" title="Copia filas seleccionadas al portapapeles (formato Excel)">⊞ Copiar al Excel</button>
   <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Deseleccionar</button>
 </div>
 
@@ -958,7 +1000,8 @@ details[open] summary::before { content: '− '; }
       </div>
       <div class="form-group">
         <label class="form-label">Action Taken</label>
-        <textarea class="form-textarea" id="new-action-taken" placeholder="Opcional…"></textarea>
+        <textarea class="form-textarea" id="new-action-taken" placeholder="Opcional…" oninput="updateNewActionCounter()"></textarea>
+        <div class="char-counter char-ok" id="new-action-counter">0 / 1000</div>
       </div>
       <div id="new-row-extra-fields"></div>
     </div>
@@ -985,14 +1028,16 @@ details[open] summary::before { content: '− '; }
           Nueva entrada
           <span style="color:var(--text-soft);font-size:10px;margin-left:6px;text-transform:none;font-weight:400;" id="log-date-preview"></span>
         </label>
-        <textarea class="form-textarea" id="log-new-entry" placeholder="Escribí la actualización del incidente…" style="min-height:80px;"></textarea>
-        <div class="form-hint">Se añadirá con timestamp <b id="log-ts-hint"></b> al inicio del historial.</div>
+        <textarea class="form-textarea" id="log-new-entry" placeholder="Escribí la actualización del incidente…" style="min-height:80px;" oninput="updateLogCounters()"></textarea>
+        <div class="char-counter char-ok" id="log-entry-counter">0 chars esta entrada</div>
+        <div class="form-hint">Se añadirá con timestamp <b id="log-ts-hint"></b> al inicio del historial. <span id="log-projected-hint" style="font-weight:600"></span></div>
       </div>
       <hr class="log-divider">
       <details>
         <summary>Editar texto completo directamente</summary>
         <div style="margin-top:10px">
-          <textarea class="form-textarea" id="log-raw-edit" style="min-height:120px;font-family:monospace;font-size:12px;"></textarea>
+          <textarea class="form-textarea" id="log-raw-edit" style="min-height:120px;font-family:monospace;font-size:12px;" oninput="updateRawCounter()"></textarea>
+          <div class="char-counter char-ok" id="log-raw-counter">0 / 1000</div>
         </div>
       </details>
     </div>
@@ -1000,6 +1045,31 @@ details[open] summary::before { content: '− '; }
       <button class="btn btn-outline" onclick="closeModal('log')">Cancelar</button>
       <button class="btn btn-outline" onclick="saveLogRaw()">Guardar texto completo</button>
       <button class="btn btn-primary" onclick="saveLogEntry()">Añadir entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: COLUMN PICKER (Copiar al Excel) -->
+<div class="overlay" id="overlay-colpicker" onclick="closeModal('colpicker')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3>⊞ Copiar al Excel — Elegí columnas</h3>
+      <button class="modal-close" onclick="closeModal('colpicker')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="selectAllCopyColumns()">Seleccionar todas</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectNoneCopyColumns()">Ninguna</button>
+        <span style="font-size:11.5px;color:var(--text-muted);margin-left:4px;" id="col-picker-scope-hint"></span>
+      </div>
+      <div class="col-picker-grid" id="col-picker-grid"></div>
+      <div style="margin-top:10px;padding:10px 12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.6">
+        <b style="color:var(--text)">Tip:</b> Al pegar en Excel con <b>Ctrl+V</b>, cada columna queda en su propia celda. Si tenés filas seleccionadas (checkboxes ✓), solo se copian esas. Si no hay selección, se copian todas las filas visibles.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('colpicker')">Cancelar</button>
+      <button class="btn btn-primary" onclick="copySelectionToExcel()">⊞ Copiar al portapapeles</button>
     </div>
   </div>
 </div>
@@ -1704,7 +1774,10 @@ function openLogModal(origIdx) {
   document.getElementById('log-date-preview').textContent = ''
 
   openModal('log')
-  setTimeout(() => document.getElementById('log-new-entry').focus(), 100)
+  setTimeout(() => {
+    document.getElementById('log-new-entry').focus()
+    initLogCounters()
+  }, 100)
 }
 
 function saveLogEntry() {
@@ -1986,7 +2059,7 @@ dropZone.addEventListener('drop', e => {
 // Close modal on Escape
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['plants', 'newrow', 'log'].forEach(name => {
+    ['plants', 'newrow', 'log', 'colpicker'].forEach(name => {
       const el = document.getElementById(`overlay-${name}`)
       if (el && el.classList.contains('open')) closeModal(name)
     })
@@ -1995,6 +2068,220 @@ document.addEventListener('keydown', e => {
 
 // Search on input
 document.getElementById('filter-search').addEventListener('input', applyFilters)
+
+// ============================================================
+// CHAR COUNTER — Action Taken (límite 1000 chars del cliente)
+// ============================================================
+const ACTION_MAX = 1000
+
+function getCharClass(count) {
+  if (count > ACTION_MAX)       return 'char-over'
+  if (count > ACTION_MAX * 0.85) return 'char-warn'
+  return 'char-ok'
+}
+
+function setCounter(el, count) {
+  if (!el) return
+  el.textContent = `${count} / ${ACTION_MAX}`
+  el.className = 'char-counter ' + getCharClass(count)
+}
+
+// Actualiza los contadores del modal de log (nueva entrada + raw)
+function updateLogCounters() {
+  const entryEl    = document.getElementById('log-new-entry')
+  const entryCount = document.getElementById('log-entry-counter')
+  const projHint   = document.getElementById('log-projected-hint')
+  const rawEl      = document.getElementById('log-raw-edit')
+
+  const newText = entryEl ? entryEl.value : ''
+
+  // Contador solo de lo que está escribiendo
+  if (entryCount) {
+    const cls = getCharClass(newText.length)
+    entryCount.textContent = `${newText.length} chars esta entrada`
+    entryCount.className   = 'char-counter ' + cls
+  }
+
+  // Total proyectado = lo que quedaría en "Action Taken" al guardar
+  if (projHint && logTarget !== null) {
+    const existing = rows[logTarget][LOG_COL] || ''
+    const ts       = formatLogTimestamp()
+    const full     = newText
+      ? (existing ? `${ts}: ${newText}\n${existing}` : `${ts}: ${newText}`)
+      : existing
+    const total = full.length
+    const cls   = getCharClass(total)
+    const color = cls === 'char-over' ? 'var(--danger)'
+                : cls === 'char-warn'  ? 'var(--warning)'
+                : 'var(--text-soft)'
+    projHint.style.color = color
+    projHint.textContent = total > 0 ? `→ Total proyectado: ${total} / ${ACTION_MAX}` : ''
+  }
+
+  // También refrescar el raw counter si el raw textarea está visible
+  updateRawCounter()
+}
+
+// Contador del textarea "Editar texto completo"
+function updateRawCounter() {
+  const rawEl  = document.getElementById('log-raw-edit')
+  const counter = document.getElementById('log-raw-counter')
+  if (rawEl && counter) setCounter(counter, rawEl.value.length)
+}
+
+// Contador del campo Action Taken en modal Nuevo Incidente
+function updateNewActionCounter() {
+  const el      = document.getElementById('new-action-taken')
+  const counter = document.getElementById('new-action-counter')
+  if (el && counter) setCounter(counter, el.value.length)
+}
+
+// Inicializa todos los contadores del modal de log al abrirlo
+function initLogCounters() {
+  updateLogCounters()
+  updateRawCounter()
+}
+
+// ============================================================
+// COLUMN PICKER & COPY TO EXCEL
+// ============================================================
+// Orden fijo para el informe mensual — siempre van primero y en este orden
+const COPY_PRESET = ['Work Order Number', 'Brief Description', 'Equipment', 'Start Date']
+
+let copyColumnsSelected = null // Set con las columnas activas
+
+function initCopyColumns() {
+  // Pre-seleccionar solo el preset (columnas que existan en el CSV actual)
+  copyColumnsSelected = new Set(COPY_PRESET.filter(c => columns.includes(c)))
+}
+
+function openColPickerModal() {
+  if (columns.length === 0) { toast('Importá un CSV primero', 'error'); return }
+  // Siempre inicializar con el preset al abrir
+  initCopyColumns()
+  renderColPickerGrid()
+
+  // Mostrar cuántas filas se copiarán
+  const scopeEl = document.getElementById('col-picker-scope-hint')
+  if (scopeEl) {
+    const n = selectedOriginalIdx.size > 0 ? selectedOriginalIdx.size : filteredIndices.length
+    const label = selectedOriginalIdx.size > 0 ? 'filas seleccionadas' : 'filas visibles'
+    scopeEl.textContent = `Se copiarán ${n} ${label}`
+  }
+  openModal('colpicker')
+}
+
+function renderColPickerGrid() {
+  const grid = document.getElementById('col-picker-grid')
+  if (!grid) return
+
+  // Preset primero (en orden fijo), luego el resto en orden del CSV
+  const presetCols = COPY_PRESET.filter(c => columns.includes(c))
+  const otherCols  = columns.filter(c => !COPY_PRESET.includes(c))
+  const ordered    = [...presetCols, ...otherCols]
+
+  let html = ''
+
+  // Sección preset
+  if (presetCols.length) {
+    html += `<div style="grid-column:1/-1;font-size:10.5px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px">
+      ★ Informe mensual (orden fijo)
+    </div>`
+    html += presetCols.map(col => renderPickerItem(col, true)).join('')
+  }
+
+  // Separador + resto
+  if (otherCols.length) {
+    html += `<div style="grid-column:1/-1;font-size:10.5px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:0.6px;margin:8px 0 2px">
+      Otras columnas
+    </div>`
+    html += otherCols.map(col => renderPickerItem(col, false)).join('')
+  }
+
+  grid.innerHTML = html
+}
+
+function renderPickerItem(col, isPreset) {
+  const isSel  = copyColumnsSelected && copyColumnsSelected.has(col)
+  const label  = col === ASSET_COL ? 'Planta (Asset ID)' : col
+  const border = isPreset ? 'border-color:rgba(99,102,241,0.4)' : ''
+  return `<label class="col-picker-item${isSel ? ' cp-selected' : ''}" style="${border}">
+    <input type="checkbox" ${isSel ? 'checked' : ''} onchange="toggleCopyColumn('${escAttr(col)}', this.closest('.col-picker-item'), this.checked)">
+    <span>${escHtml(label)}</span>
+  </label>`
+}
+
+function toggleCopyColumn(col, labelEl, checked) {
+  if (!copyColumnsSelected) copyColumnsSelected = new Set(columns)
+  if (checked) {
+    copyColumnsSelected.add(col)
+    labelEl.classList.add('cp-selected')
+  } else {
+    copyColumnsSelected.delete(col)
+    labelEl.classList.remove('cp-selected')
+  }
+}
+
+function selectAllCopyColumns() {
+  copyColumnsSelected = new Set([...COPY_PRESET, ...columns].filter(c => columns.includes(c)))
+  renderColPickerGrid()
+}
+
+function selectNoneCopyColumns() {
+  copyColumnsSelected = new Set()
+  renderColPickerGrid()
+}
+
+// Copia filas seleccionadas (o visibles) al portapapeles en formato TSV
+// → Excel/Google Sheets lo interpreta como tabla al pegar con Ctrl+V
+function copySelectionToExcel() {
+  const targetIndices = selectedOriginalIdx.size > 0
+    ? [...selectedOriginalIdx]
+    : filteredIndices
+
+  if (targetIndices.length === 0) { toast('Sin filas para copiar', 'error'); return }
+
+  // Columnas en orden: preset primero (orden fijo), luego el resto en orden CSV
+  const selected = (copyColumnsSelected && copyColumnsSelected.size > 0)
+    ? copyColumnsSelected
+    : new Set(columns)
+  const cols = [
+    ...COPY_PRESET.filter(c => selected.has(c)),
+    ...columns.filter(c => selected.has(c) && !COPY_PRESET.includes(c))
+  ]
+
+  if (cols.length === 0) { toast('Seleccioná al menos una columna', 'error'); return }
+
+  // Cabecera + filas en TSV
+  const header = cols.join('\t')
+  const body   = targetIndices.map(i =>
+    cols.map(c => {
+      // Para Asset ID mostramos el nombre de la planta (más legible en el informe)
+      if (c === ASSET_COL) {
+        const id = rows[i][c] || ''
+        return plants[id] || id
+      }
+      // Escapar tabs y saltos de línea para no romper la tabla
+      return (rows[i][c] || '').replace(/\t/g, ' ').replace(/\n/g, ' | ')
+    }).join('\t')
+  ).join('\n')
+
+  const tsv = header + '\n' + body
+
+  if (!navigator.clipboard) {
+    toast('Tu navegador no soporta copiar al portapapeles', 'error')
+    return
+  }
+  navigator.clipboard.writeText(tsv)
+    .then(() => {
+      const scope = selectedOriginalIdx.size > 0
+        ? `${selectedOriginalIdx.size} filas seleccionadas`
+        : `${filteredIndices.length} filas visibles`
+      toast(`Copiado: ${scope} · ${cols.length} columnas → pegá en Excel con Ctrl+V`, 'success')
+      closeModal('colpicker')
+    })
+    .catch(() => toast('No se pudo copiar al portapapeles', 'error'))
+}
 </script>
 </body>
 </html>
