@@ -844,6 +844,9 @@ details[open] summary::before { content: '− '; }
     <option value="C">C · Completed</option>
     <option value="H">H · Closed</option>
   </select>
+  <select class="filter-select" id="filter-month" onchange="applyFilters()">
+    <option value="">Todos los meses</option>
+  </select>
   <input type="text" class="filter-input" id="filter-search" placeholder="Buscar...">
   <div class="toolbar-sep"></div>
   <button class="btn btn-ghost btn-sm" id="btn-edit-mode" onclick="toggleEditMode()" title="Oculta columnas bloqueadas para enfocarte en lo editable">Modo edición</button>
@@ -1466,6 +1469,7 @@ function showApp() {
   document.getElementById('stats-bar').style.display = 'flex'
   document.getElementById('table-wrapper').style.display = 'block'
   populatePlantFilter()
+  populateMonthFilter()
   renderTable()
   renderStats()
 }
@@ -1485,11 +1489,18 @@ function applyFilters() {
   const status = document.getElementById('filter-status').value
   const type = document.getElementById('filter-type').value
   const woStatusFilter = document.getElementById('filter-wo-status').value
+  const monthFilter = document.getElementById('filter-month').value  // "YYYY-MM"
   const search = document.getElementById('filter-search').value.toLowerCase()
 
   filteredIndices = rows.reduce((acc, row, i) => {
     if (plant && row[ASSET_COL] !== plant) return acc
     if (status && row[STATUS_COL] !== status) return acc
+    if (monthFilter) {
+      const d = parseCsvDate(row[CREATED_COL])
+      if (!d) return acc
+      const rowMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      if (rowMonth !== monthFilter) return acc
+    }
     if (type) {
       const rowType = row[WO_COL] ? 'update' : 'create'
       if (rowType !== type) return acc
@@ -1516,6 +1527,36 @@ function applyFilters() {
   renderTable()
   renderStats()
   renderBulkBar()
+}
+
+const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+function populateMonthFilter() {
+  const sel = document.getElementById('filter-month')
+  const current = sel.value
+
+  // Recopilar todos los YYYY-MM únicos presentes en los datos
+  const monthSet = new Set()
+  rows.forEach(r => {
+    const d = parseCsvDate(r[CREATED_COL])
+    if (d) monthSet.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`)
+  })
+
+  // Ordenar cronológicamente (más reciente primero)
+  const sorted = [...monthSet].sort((a, b) => b.localeCompare(a))
+
+  sel.innerHTML = '<option value="">Todos los meses</option>'
+  sorted.forEach(ym => {
+    const [year, month] = ym.split('-')
+    const label = `${MONTH_NAMES[parseInt(month,10)-1]} ${year}`
+    const opt = document.createElement('option')
+    opt.value = ym
+    opt.textContent = label
+    sel.appendChild(opt)
+  })
+
+  // Restaurar selección previa si sigue siendo válida
+  if (current && monthSet.has(current)) sel.value = current
 }
 
 function populatePlantFilter() {
@@ -2398,13 +2439,13 @@ function initLogCounters() {
 // COLUMN PICKER & COPY TO EXCEL
 // ============================================================
 // Orden fijo para el informe mensual — siempre van primero y en este orden
-const COPY_PRESET = ['Work Order Number', 'Brief Description', 'Equipment', 'Start Date']
+const COPY_PRESET = ['Work Order Number', 'Ops Status', 'Resolution Date/Time', 'Brief Description', 'Equipment', 'WO Status']
 
 let copyColumnsSelected = null // Set con las columnas activas
 
 function initCopyColumns() {
-  // Pre-seleccionar solo el preset (columnas que existan en el CSV actual)
-  copyColumnsSelected = new Set(COPY_PRESET.filter(c => columns.includes(c)))
+  // Seleccionar SIEMPRE todas las columnas del preset, existan o no en el CSV
+  copyColumnsSelected = new Set(COPY_PRESET)
 }
 
 function openColPickerModal() {
@@ -2427,20 +2468,17 @@ function renderColPickerGrid() {
   const grid = document.getElementById('col-picker-grid')
   if (!grid) return
 
-  // Preset primero (en orden fijo), luego el resto en orden del CSV
-  const presetCols = COPY_PRESET.filter(c => columns.includes(c))
+  // Preset siempre completo (en orden fijo), luego el resto del CSV
+  const presetCols = COPY_PRESET  // todos, existan o no en el CSV
   const otherCols  = columns.filter(c => !COPY_PRESET.includes(c))
-  const ordered    = [...presetCols, ...otherCols]
 
   let html = ''
 
-  // Sección preset
-  if (presetCols.length) {
-    html += `<div style="grid-column:1/-1;font-size:10.5px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px">
-      ★ Informe mensual (orden fijo)
-    </div>`
-    html += presetCols.map(col => renderPickerItem(col, true)).join('')
-  }
+  // Sección preset — siempre visible completa
+  html += `<div style="grid-column:1/-1;font-size:10.5px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:2px">
+    ★ Informe mensual (orden fijo)
+  </div>`
+  html += presetCols.map(col => renderPickerItem(col, true)).join('')
 
   // Separador + resto
   if (otherCols.length) {
@@ -2454,10 +2492,23 @@ function renderColPickerGrid() {
 }
 
 function renderPickerItem(col, isPreset) {
-  const isSel  = copyColumnsSelected && copyColumnsSelected.has(col)
+  const inCsv  = columns.includes(col)
   const label  = col === ASSET_COL ? 'Planta (Asset ID)' : col
-  const border = isPreset ? 'border-color:rgba(99,102,241,0.4)' : ''
-  return `<label class="col-picker-item${isSel ? ' cp-selected' : ''}" style="${border}">
+
+  if (isPreset) {
+    // Columnas del preset: siempre seleccionadas, NO se pueden desmarcar
+    const hint = !inCsv
+      ? `<span style="font-size:10px;color:var(--text-soft);margin-left:4px">(vacía)</span>`
+      : ''
+    return `<label class="col-picker-item cp-selected" style="border-color:rgba(99,102,241,0.4);cursor:default" title="Columna obligatoria del informe mensual">
+      <input type="checkbox" checked disabled style="opacity:0.5;cursor:default">
+      <span>${escHtml(label)}${hint}</span>
+    </label>`
+  }
+
+  // Columnas extra del CSV: opcionales
+  const isSel = copyColumnsSelected && copyColumnsSelected.has(col)
+  return `<label class="col-picker-item${isSel ? ' cp-selected' : ''}">
     <input type="checkbox" ${isSel ? 'checked' : ''} onchange="toggleCopyColumn('${escAttr(col)}', this.closest('.col-picker-item'), this.checked)">
     <span>${escHtml(label)}</span>
   </label>`
@@ -2493,13 +2544,12 @@ function copySelectionToExcel() {
 
   if (targetIndices.length === 0) { toast('Sin filas para copiar', 'error'); return }
 
-  // Columnas en orden: preset primero (orden fijo), luego el resto en orden CSV
-  const selected = (copyColumnsSelected && copyColumnsSelected.size > 0)
-    ? copyColumnsSelected
-    : new Set(columns)
+  // Las 6 columnas del preset van SIEMPRE, en orden fijo, sin excepción.
+  // Si una columna no existe en el CSV, se copia como celda vacía (para no romper el orden en Excel).
+  // Después van columnas extra opcionales que el usuario haya marcado en el picker.
   const cols = [
-    ...COPY_PRESET.filter(c => selected.has(c)),
-    ...columns.filter(c => selected.has(c) && !COPY_PRESET.includes(c))
+    ...COPY_PRESET,
+    ...columns.filter(c => copyColumnsSelected && copyColumnsSelected.has(c) && !COPY_PRESET.includes(c))
   ]
 
   if (cols.length === 0) { toast('Seleccioná al menos una columna', 'error'); return }
@@ -2513,8 +2563,22 @@ function copySelectionToExcel() {
         const id = rows[i][c] || ''
         return plants[id] || id
       }
-      // Escapar tabs y saltos de línea para no romper la tabla
-      return (rows[i][c] || '').replace(/\t/g, ' ').replace(/\n/g, ' | ')
+      // Fechas: convertir MM-DD-YYYY HH:MM:SS → DD-MM-YYYY
+      const DATE_COLS = [SCHED_COL, CREATED_COL, 'Resolution Date/Time', 'Start Date', 'End Date']
+      if (DATE_COLS.includes(c)) {
+        const d = parseCsvDate(rows[i][c])
+        if (d) {
+          const pad = n => String(n).padStart(2,'0')
+          return `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}`
+        }
+      }
+      // WO Status: código → palabra completa
+      if (c === WO_STATUS_COL) {
+        const map = { O: 'Open', C: 'Completed', H: 'Closed' }
+        return map[rows[i][c]] || rows[i][c] || ''
+      }
+      // Escapar tabs y saltos de línea (incl. \r de Windows) para no romper la tabla
+      return (rows[i][c] || '').replace(/\r/g, '').replace(/\t/g, ' ').replace(/\n/g, ' | ')
     }).join('\t')
   ).join('\n')
 
