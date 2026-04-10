@@ -1136,6 +1136,7 @@ const EQUIP_COL = 'Equipment'
 const LOG_COL = 'Action Taken'
 const SCHED_COL = 'Scheduled Date'
 const CREATED_COL = 'Created On Date'
+const RES_COL = 'Resolution Date/Time'
 const WO_STATUS_COL = 'WO Status'
 // WO Status values: O = Open, C = Completed, H = Closed (Hold)
 // Solo O y C se incluyen en el export UPDATE — H queda excluido
@@ -1737,6 +1738,13 @@ function renderCell(row, col, origIdx) {
     return `<td><span class="${cls}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="Clic para editar">${display || '—'}</span></td>`
   }
 
+  // Resolution Date/Time — editable date picker
+  if (col === RES_COL) {
+    const display = val ? formatDateDisplay(val) : ''
+    const cls = val ? 'cell-val cell-datetime' : 'cell-val cell-empty cell-datetime'
+    return `<td><span class="${cls}" onclick="startEdit(${origIdx}, '${escAttr(col)}')" title="Clic para editar">${display || '—'}</span></td>`
+  }
+
   // Ops Status
   if (col === STATUS_COL) {
     const badge = renderStatusBadge(val)
@@ -1773,7 +1781,7 @@ function renderCell(row, col, origIdx) {
 
 function renderInlineEditor(col, val, origIdx) {
   // Date field
-  if (col === SCHED_COL) {
+  if (col === SCHED_COL || col === RES_COL) {
     const inputVal = csvDateToInput(val)
     return `<td>
       <input type="datetime-local" class="cell-input" style="width:190px;" value="${inputVal}"
